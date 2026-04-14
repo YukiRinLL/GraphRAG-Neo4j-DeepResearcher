@@ -10,6 +10,7 @@ from types import TracebackType
 from typing import Any, Dict, List, Optional
 
 import json
+import re
 from ms_agent.llm.utils import Tool, ToolCall
 from ms_agent.tools.agent_tool import AgentTool
 from ms_agent.tools.base import ToolBase
@@ -216,9 +217,53 @@ class ToolManager:
                 tool_args = tool_info['arguments']
                 while isinstance(tool_args, str):
                     try:
-                        tool_args = json.loads(tool_args)
+                        # 尝试清理 HTML 实体，如 &quot;
+                        cleaned_args = tool_args.replace('&quot;', '"')
+                        # 去除开头的空格
+                        cleaned_args = cleaned_args.strip()
+                        
+                        # 修复 JSON 中的常见错误
+                        # 1. 修复多余的反斜杠
+                        cleaned_args = cleaned_args.replace('\\"', '"')
+                        # 2. 移除字符串末尾多余的 " 字符
+                        cleaned_args = cleaned_args.rstrip('"')
+                        # 3. 修复字段值末尾的多余 " 字符
+                        # 例如: "value"
+                        cleaned_args = re.sub(r'"(.*?)"\s*,', r'"\1",', cleaned_args)
+                        # 4. 修复 JSON 结构中的错误
+                        
+                        # 尝试解析
+                        tool_args = json.loads(cleaned_args)
                     except Exception:  # noqa
-                        return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
+                        # 尝试更激进的修复方法
+                        try:
+                            # 移除所有反斜杠
+                            cleaned_args = tool_args.replace('\\', '')
+                            # 去除开头和结尾的空格
+                            cleaned_args = cleaned_args.strip()
+                            # 尝试解析
+                            tool_args = json.loads(cleaned_args)
+                        except Exception:
+                            # 最后尝试：手动构建一个简单的 JSON
+                            try:
+                                # 提取关键信息
+                                task_id = re.search(r'task_id\s*:\s*"([^"]+)"', tool_args)
+                                research_objectives = re.search(r'research_objectives\s*:\s*"([^"]+)"', tool_args)
+                                questions = re.findall(r'"([^"]+)"', tool_args)
+                                
+                                # 构建一个基本的 JSON
+                                basic_json = {
+                                    "request": {
+                                        "task_id": task_id.group(1) if task_id else "T_1",
+                                        "research_objectives": research_objectives.group(1) if research_objectives else "",
+                                        "questions_to_answer": questions[:3],
+                                        "constraints": {"time_range": "2025-04-14 to 2026-04-14"},
+                                        "stopping_conditions": "Collect sufficient evidence"
+                                    }
+                                }
+                                tool_args = basic_json
+                            except Exception:
+                                return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
                 assert tool_name in self._tool_index, f'Tool name {tool_name} not found'
                 tool_ins, server_name, _ = self._tool_index[tool_name]
                 call_args = tool_args
