@@ -244,26 +244,40 @@ class ToolManager:
                             # 尝试解析
                             tool_args = json.loads(cleaned_args)
                         except Exception:
-                            # 最后尝试：手动构建一个简单的 JSON
+                            # 尝试处理包含双引号的查询字符串
                             try:
-                                # 提取关键信息
-                                task_id = re.search(r'task_id\s*:\s*"([^"]+)"', tool_args)
-                                research_objectives = re.search(r'research_objectives\s*:\s*"([^"]+)"', tool_args)
-                                questions = re.findall(r'"([^"]+)"', tool_args)
-                                
-                                # 构建一个基本的 JSON
-                                basic_json = {
-                                    "request": {
-                                        "task_id": task_id.group(1) if task_id else "T_1",
-                                        "research_objectives": research_objectives.group(1) if research_objectives else "",
-                                        "questions_to_answer": questions[:3],
-                                        "constraints": {"time_range": "2025-04-14 to 2026-04-14"},
-                                        "stopping_conditions": "Collect sufficient evidence"
-                                    }
-                                }
-                                tool_args = basic_json
+                                # 替换查询字符串中的双引号为单引号
+                                cleaned_args = re.sub(r'"query":\s*"(.*?)"', lambda m: f'"query": "{m.group(1).replace("\"", "\\\"")}"', tool_args)
+                                # 尝试解析
+                                tool_args = json.loads(cleaned_args)
                             except Exception:
-                                return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
+                                # 最后尝试：直接提取参数
+                                try:
+                                    # 提取查询参数
+                                    query_match = re.search(r'query\s*:\s*"([^"]+)"', tool_args)
+                                    num_results_match = re.search(r'num_results\s*:\s*(\d+)', tool_args)
+                                    date_from_match = re.search(r'date_from\s*:\s*"([^"]+)"', tool_args)
+                                    date_to_match = re.search(r'date_to\s*:\s*"([^"]+)"', tool_args)
+                                    categories_match = re.search(r'categories\s*:\s*\[(.*?)\]', tool_args)
+                                    
+                                    # 构建参数字典
+                                    args_dict = {}
+                                    if query_match:
+                                        args_dict['query'] = query_match.group(1)
+                                    if num_results_match:
+                                        args_dict['num_results'] = int(num_results_match.group(1))
+                                    if date_from_match:
+                                        args_dict['date_from'] = date_from_match.group(1)
+                                    if date_to_match:
+                                        args_dict['date_to'] = date_to_match.group(1)
+                                    if categories_match:
+                                        categories = categories_match.group(1).split(',')
+                                        args_dict['categories'] = [cat.strip().strip('"') for cat in categories]
+                                    
+                                    tool_args = args_dict
+                                except Exception:
+                                    # 返回错误信息
+                                    return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
                 assert tool_name in self._tool_index, f'Tool name {tool_name} not found'
                 tool_ins, server_name, _ = self._tool_index[tool_name]
                 call_args = tool_args
