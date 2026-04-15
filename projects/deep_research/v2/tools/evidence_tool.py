@@ -901,6 +901,16 @@ class EvidenceTool(ToolBase):
             self._add_to_index(index, note)
             self._save_index_locked(paths, index)
 
+        # Auto-build knowledge graph when a new note is added
+        try:
+            from ms_agent.tools.knowledge_graph.knowledge_graph_tool import KnowledgeGraphTool
+            kg_tool = KnowledgeGraphTool()
+            evidence_dir = os.path.join(self.output_dir, self._evidence_dir)
+            await kg_tool.build_graph(evidence_dir)
+            logger.info(f"Knowledge graph updated with new note: {note_id}")
+        except Exception as e:
+            logger.warning(f"Failed to update knowledge graph: {e}")
+
         return _json_dumps({
             'status': 'ok',
             'note_id': note_id,

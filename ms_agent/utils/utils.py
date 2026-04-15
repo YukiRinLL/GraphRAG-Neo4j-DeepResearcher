@@ -785,50 +785,58 @@ def render_markdown_todo(md_path: str,
     - Cross-platform (Windows/Linux/macOS)
     - Good-looking: theme + panel + soft wrapping
     """
-    from rich.console import Console
-    from rich.markdown import Markdown
-    from rich.panel import Panel
-    from rich.theme import Theme
-
-    theme = Theme({
-        'markdown.code': 'bold',
-        'markdown.code_block': 'dim',
-        'markdown.h1': 'bold',
-        'markdown.h2': 'bold',
-        'markdown.h3': 'bold',
-        'markdown.link': 'underline',
-        'markdown.list': '',
-    })
-    console = Console(theme=theme, soft_wrap=True, highlight=False)
-
     try:
         md_text = Path(md_path).read_text(encoding='utf-8')
+        if not md_text:
+            return
+        
+        # Try to render with Rich
+        try:
+            from rich.console import Console
+            from rich.markdown import Markdown
+            from rich.panel import Panel
+            from rich.theme import Theme
+
+            theme = Theme({
+                'markdown.code': 'bold',
+                'markdown.code_block': 'dim',
+                'markdown.h1': 'bold',
+                'markdown.h2': 'bold',
+                'markdown.h3': 'bold',
+                'markdown.link': 'underline',
+                'markdown.list': '',
+            })
+            console = Console(theme=theme, soft_wrap=True, highlight=False)
+
+            md = Markdown(
+                md_text,
+                code_theme='monokai',
+                hyperlinks=True,
+                inline_code_lexer='text',
+            )
+
+            content = Panel.fit(
+                md,
+                title=title,
+                border_style='dim',
+                padding=(1, 2),
+            )
+
+            if use_pager:
+                with console.pager():
+                    console.print(content)
+            else:
+                console.print(content)
+        except Exception:
+            # Fallback to plain text if Rich fails
+            print(md_text)
     except FileNotFoundError:
         logger.error(f'Markdown file not found: {md_path}')
-        return
     except Exception as e:
-        logger.error(f'Error reading markdown file: {e}')
-        return
-
-    if not md_text:
-        return
-
-    md = Markdown(
-        md_text,
-        code_theme='monokai',
-        hyperlinks=True,
-        inline_code_lexer='text',
-    )
-
-    content = Panel.fit(
-        md,
-        title=title,
-        border_style='dim',
-        padding=(1, 2),
-    )
-
-    if use_pager:
-        with console.pager():
-            console.print(content)
-    else:
-        console.print(content)
+        logger.error(f'Error rendering markdown: {e}')
+        try:
+            # Try to print plain text as last resort
+            md_text = Path(md_path).read_text(encoding='utf-8')
+            print(md_text)
+        except:
+            pass
