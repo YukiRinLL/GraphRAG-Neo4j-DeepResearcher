@@ -23,8 +23,9 @@ class EmbeddingClient:
     def encode(self, text: str) -> Optional[List[float]]:
         """Generate embedding for text using SiliconFlow API."""
         try:
+            embeddings_url = f"{self.base_url.rstrip('/')}/embeddings"
             response = requests.post(
-                self.base_url,
+                embeddings_url,
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {self.api_key}"
@@ -97,12 +98,13 @@ class KnowledgeGraphBuilder:
         with open(index_path, 'r', encoding='utf-8') as f:
             evidence_index = json.load(f)
         
-        # Process each evidence item
-        for evidence_id, evidence_info in evidence_index.items():
-            try:
-                self._process_evidence(evidence_id, evidence_info, evidence_dir)
-            except Exception as e:
-                logger.error(f"Failed to process evidence {evidence_id}: {e}")
+        # Process each note in the index
+        if 'notes' in evidence_index:
+            for note_id, note_info in evidence_index['notes'].items():
+                try:
+                    self._process_evidence(note_id, note_info, evidence_dir)
+                except Exception as e:
+                    logger.error(f"Failed to process note {note_id}: {e}")
 
     def _process_evidence(self, evidence_id: str, evidence_info: Dict[str, Any], evidence_dir: str) -> None:
         """
@@ -129,17 +131,27 @@ class KnowledgeGraphBuilder:
                     d.content = $content,
                     d.timestamp = datetime()
                 """
+            # Get URL from sources if available
+            url = ''
+            sources = evidence_info.get('sources', [])
+            if sources:
+                url = sources[0].get('url', '')
+            
             params = {
                 "id": document_id,
                 "title": evidence_info.get('title', ''),
-                "url": evidence_info.get('url', ''),
+                "url": url,
                 "content": content,
             }
             
             # Only add embedding if available
             if embedding is not None:
                 query = query.replace("d.timestamp = datetime()", "d.embedding = $embedding, d.timestamp = datetime()")
-                params["embedding"] = embedding.tolist()
+                # Check if embedding is already a list (from SiliconFlow API) or numpy array
+                if hasattr(embedding, 'tolist'):
+                    params["embedding"] = embedding.tolist()
+                else:
+                    params["embedding"] = embedding
             
             self.neo4j.run_query(query, params)
             
@@ -167,7 +179,7 @@ class KnowledgeGraphBuilder:
             Evidence content
         """
         notes_dir = os.path.join(evidence_dir, 'notes')
-        evidence_file = os.path.join(notes_dir, f"{evidence_id}.md")
+        evidence_file = os.path.join(notes_dir, f"note_{evidence_id}.md")
         
         if os.path.exists(evidence_file):
             with open(evidence_file, 'r', encoding='utf-8') as f:
@@ -292,7 +304,8 @@ class KnowledgeGraphBuilder:
             MERGE (t:Entity {id: $target})
             MERGE (s)-[r:RELATED_TO {context: $context}]->(t)
             MERGE (d:Document {id: $document_id})
-            MERGE (d)-[:MENTIONS]->(r)
+            MERGE (d)-[:MENTIONS]->(s)
+            MERGE (d)-[:MENTIONS]->(t)
             """,
             {
                 "source": relationship['source'],
@@ -323,7 +336,7 @@ class KnowledgeGraphBuilder:
             {
                 "id": query_id,
                 "text": query,
-                "embedding": embedding.tolist()
+                "embedding": embedding.tolist() if hasattr(embedding, 'tolist') else embedding
             }
         )
 
