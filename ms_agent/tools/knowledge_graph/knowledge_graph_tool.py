@@ -119,8 +119,39 @@ class KnowledgeGraphTool(ToolBase):
         if not self.builder:
             return "Knowledge graph tool not initialized properly"
             
+        # Normalize the evidence directory path
+        evidence_dir = evidence_dir.replace('\n', '').replace('\\', '/').strip()
+        
+        # If the directory doesn't exist, try to find it relative to the current working directory
+        if not os.path.exists(evidence_dir):
+            # Try to find evidence directory in common locations
+            common_locations = [
+                './evidence',
+                './output/deep_research/benchmark_run/evidence',
+                'output/deep_research/benchmark_run/evidence',
+                '../evidence',
+                '../../evidence'
+            ]
+            
+            for location in common_locations:
+                if os.path.exists(location):
+                    evidence_dir = location
+                    break
+            
         if not os.path.exists(evidence_dir):
             return f"Evidence directory not found: {evidence_dir}"
+        
+        # Check if index.json exists in the directory
+        index_path = os.path.join(evidence_dir, 'index.json')
+        if not os.path.exists(index_path):
+            # If index.json not found, check if we're in the notes directory
+            # and move up one level
+            if os.path.basename(evidence_dir) == 'notes' and os.path.exists(os.path.join(os.path.dirname(evidence_dir), 'index.json')):
+                evidence_dir = os.path.dirname(evidence_dir)
+                index_path = os.path.join(evidence_dir, 'index.json')
+            
+        if not os.path.exists(index_path):
+            return f"Evidence index not found at {index_path}"
         
         try:
             self.builder.build_from_evidence(evidence_dir)
