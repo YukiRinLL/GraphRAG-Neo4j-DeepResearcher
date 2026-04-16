@@ -80,7 +80,7 @@ class KnowledgeGraphRetriever:
                 """,
                 {
                     "top_k": top_k,
-                    "embedding": query_embedding.tolist()
+                    "embedding": query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
                 }
             )
             
@@ -211,7 +211,7 @@ class KnowledgeGraphRetriever:
                 """,
                 {
                     "top_k": top_k,
-                    "embedding": query_embedding.tolist()
+                    "embedding": query_embedding.tolist() if hasattr(query_embedding, 'tolist') else query_embedding
                 }
             )
             

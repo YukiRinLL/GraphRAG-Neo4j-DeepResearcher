@@ -2,6 +2,15 @@
 import os
 from typing import Dict, Any, Optional
 
+# Load environment variables from .env file
+if os.path.exists('.env'):
+    with open('.env', 'r', encoding='utf-8') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                key, value = line.split('=', 1)
+                os.environ[key.strip()] = value.strip()
+
 
 class KnowledgeGraphConfig:
     """

@@ -63,14 +63,14 @@ class Neo4jConnection:
             parameters: Query parameters
             
         Returns:
-            Query result
+            Query result as list of records
         """
         if not self.driver:
             self.connect()
         
         with self.driver.session() as session:
             result = session.run(query, parameters or {})
-            return result
+            return list(result)
 
     def create_constraints(self) -> None:
         """
