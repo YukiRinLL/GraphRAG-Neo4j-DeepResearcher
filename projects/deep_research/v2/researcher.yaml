@@ -1,6 +1,8 @@
 llm:
   service: openai
-  model: gpt-5-2025-08-07
+  model: qwen3.5-flash
+#  model: Qwen/Qwen3-8B
+#  model: qwen3.5-plus
   openai_api_key: <OPENAI_API_KEY>
   openai_base_url: <OPENAI_BASE_URL>
 
@@ -134,6 +136,7 @@ tools:
         max_output_chars: 200000
   plugins:
     - tools/evidence_tool.py
+    - ms_agent.tools.knowledge_graph.knowledge_graph_tool
 
 
 callbacks:
@@ -147,6 +150,8 @@ self_reflection:
   quality_check:
     enabled: true
     model: qwen3.5-flash
+#    model: Qwen/Qwen3-8B
+#    model: qwen3.5-plus
 
 handler: time_handler
 

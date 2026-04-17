@@ -1,6 +1,8 @@
 llm:
   service: openai
-  model: qwen3.5-plus
+  model: qwen3.5-flash
+#  model: Qwen/Qwen3-8B
+#  model: qwen3.5-plus
   openai_api_key: <OPENAI_API_KEY>
   openai_base_url: <OPENAI_BASE_URL>
 
@@ -48,6 +50,8 @@ tools:
     enable_chunking: false
     enable_summarization: true
     summarizer_model: qwen3.5-flash
+#    summarizer_model: Qwen/Qwen3-8B
+#    summarizer_model: qwen3.5-flash
     summarizer_base_url: <OPENAI_BASE_URL>
     summarizer_api_key: <OPENAI_API_KEY>
     max_content_chars: 200000
@@ -68,6 +72,7 @@ tools:
       - delete_note
   plugins:
     - tools/evidence_tool.py
+    - ms_agent.tools.knowledge_graph.knowledge_graph_tool
 
 
 handler: time_handler
