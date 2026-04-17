@@ -1,7 +1,7 @@
 llm:
   service: openai
-  model: qwen3.5-flash
-#  model: Qwen/Qwen3-8B
+#  model: qwen3.5-flash
+  model: Qwen/Qwen3-8B
 #  model: qwen3.5-plus
   openai_api_key: <OPENAI_API_KEY>
   openai_base_url: <OPENAI_BASE_URL>
@@ -76,8 +76,8 @@ self_reflection:
   post_report_guidance_enabled: false
   quality_check:
     enabled: true
-    model: qwen3.5-flash
-#    model: Qwen/Qwen3-8B
+#    model: qwen3.5-flash
+    model: Qwen/Qwen3-8B
 #    model: qwen3.5-plus
 
 tool_call_timeout: 300
