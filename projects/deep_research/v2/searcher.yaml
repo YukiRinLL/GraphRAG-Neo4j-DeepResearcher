@@ -50,7 +50,7 @@ tools:
     enable_chunking: false
     enable_summarization: true
 #    summarizer_model: qwen3.5-flash
-    summarizer_model: Qwen/Qwen3-8B
+#    summarizer_model: Qwen/Qwen3-8B
     summarizer_model: qwen3.5-plus
     summarizer_base_url: <OPENAI_BASE_URL>
     summarizer_api_key: <OPENAI_API_KEY>
