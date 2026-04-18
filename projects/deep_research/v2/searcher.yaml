@@ -1,8 +1,8 @@
 llm:
   service: openai
 #  model: qwen3.5-flash
-  model: Qwen/Qwen3-8B
-#  model: qwen3.5-plus
+#  model: Qwen/Qwen3-8B
+  model: qwen3.5-plus
   openai_api_key: <OPENAI_API_KEY>
   openai_base_url: <OPENAI_BASE_URL>
 
@@ -51,7 +51,7 @@ tools:
     enable_summarization: true
 #    summarizer_model: qwen3.5-flash
     summarizer_model: Qwen/Qwen3-8B
-#    summarizer_model: qwen3.5-flash
+    summarizer_model: qwen3.5-plus
     summarizer_base_url: <OPENAI_BASE_URL>
     summarizer_api_key: <OPENAI_API_KEY>
     max_content_chars: 200000

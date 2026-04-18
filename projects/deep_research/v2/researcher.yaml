@@ -1,8 +1,8 @@
 llm:
   service: openai
 #  model: qwen3.5-flash
-  model: Qwen/Qwen3-8B
-#  model: qwen3.5-plus
+#  model: Qwen/Qwen3-8B
+  model: qwen3.5-plus
   openai_api_key: <OPENAI_API_KEY>
   openai_base_url: <OPENAI_BASE_URL>
 
@@ -150,8 +150,8 @@ self_reflection:
   quality_check:
     enabled: true
 #    model: qwen3.5-flash
-    model: Qwen/Qwen3-8B
-#    model: qwen3.5-plus
+#    model: Qwen/Qwen3-8B
+    model: qwen3.5-plus
 
 handler: time_handler
 

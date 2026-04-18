@@ -216,6 +216,9 @@ class KnowledgeGraphBuilder:
         """
         entities = []
         
+        # 文本预处理：清理Markdown格式和行尾换行符
+        text = self._preprocess_text(text)
+        
         # Define patterns to exclude (formatting, common stop words, etc.)
         exclude_patterns = [
             r'^\*\*.*\*\*$',  # Markdown bold formatting
@@ -241,6 +244,31 @@ class KnowledgeGraphBuilder:
             r'^Primary.*$',  # Generic terms
             r'^Secondary.*$',  # Generic terms
             r'^Additional.*$',  # Generic terms
+            r'^Metadata.*$',  # Section headers
+            r'^Sources.*$',  # Section headers
+            r'^- \*\*Note ID\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Task ID\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Tags\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Quality Score\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Created\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Published\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Source\*\*.*$',  # Metadata lines in notes
+            r'^- \*\*Summary\*\*.*$',  # Metadata lines in notes
+            r'^Quality$',  # Standalone metadata field names
+            r'^Score$',
+            r'^Task$',
+            r'^Note$',
+            r'^Tags$',
+            r'^Created$',
+            r'^Published$',
+            r'^Source$',
+            r'^Summary$',
+            r'^Content$',
+            r'^References$',
+            r'^Key Features$',
+            r'^Primary$',
+            r'^Secondary$',
+            r'^Additional$',
             r'^Furthermore.*$',  # Transition words
             r'^Moreover.*$',  # Transition words
             r'^Additionally.*$',  # Transition words
@@ -662,29 +690,41 @@ class KnowledgeGraphBuilder:
             acronym_pattern = r'\b[A-Z]{2,4}\b'
             acronym_matches = re.findall(acronym_pattern, sentence)
             
+            # Pattern 4: Multi-word phrases (proper nouns with 2-4 words)
+            # 改进的短语提取模式，确保能够提取完整的实体
+            phrase_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'
+            phrase_matches = re.findall(phrase_pattern, sentence)
+            
+            # Pattern 5: 带连字符的多词短语
+            hyphenated_phrase_pattern = r'\b[A-Z][a-z]+(?:-[A-Z][a-z]+)+\b'
+            hyphenated_phrase_matches = re.findall(hyphenated_phrase_pattern, sentence)
+            
             # Combine all potential entities
-            potential_entities = set(capitalized_matches + technical_matches + acronym_matches)
+            potential_entities = set(capitalized_matches + technical_matches + acronym_matches + phrase_matches + hyphenated_phrase_matches)
             
             for entity_name in potential_entities:
+                # 实体归一化
+                normalized_entity = self._normalize_entity(entity_name)
+                
                 # Skip if matches exclusion patterns
-                if exclude_regex.match(entity_name):
+                if exclude_regex.match(normalized_entity):
                     continue
                 
                 # Skip if too short or too long
-                if len(entity_name) < 3 or len(entity_name) > 50:
+                if len(normalized_entity) < 3 or len(normalized_entity) > 50:
                     continue
                 
                 # Skip if it's a common word (case-insensitive)
                 common_words = {'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been', 'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those', 'it', 'its', 'they', 'their', 'them', 'he', 'she', 'him', 'her', 'his', 'we', 'us', 'our', 'you', 'your', 'which', 'who', 'whom', 'whose', 'where', 'when', 'why', 'how', 'what', 'such', 'same', 'other', 'another', 'each', 'every', 'all', 'some', 'any', 'no', 'none', 'both', 'either', 'neither'}
-                if entity_name.lower() in common_words:
+                if normalized_entity.lower() in common_words:
                     continue
                 
                 # Skip if it's a number
-                if entity_name.isdigit():
+                if normalized_entity.isdigit():
                     continue
                 
                 # Skip if it contains only special characters
-                if not re.search(r'[a-zA-Z]', entity_name):
+                if not re.search(r'[a-zA-Z]', normalized_entity):
                     continue
                 
                 # Find context for the entity
@@ -697,17 +737,11 @@ class KnowledgeGraphBuilder:
                 context = sentence[context_start:context_end]
                 
                 # Determine entity type based on patterns
-                entity_type = "Entity"
-                if re.match(r'^[A-Z]{2,4}$', entity_name):
-                    entity_type = "Acronym"
-                elif re.search(r'[-_]', entity_name):
-                    entity_type = "TechnicalTerm"
-                elif entity_name.istitle() and len(entity_name) > 2:
-                    entity_type = "ProperNoun"
+                entity_type = self._infer_entity_type(normalized_entity, context)
                 
                 entities.append({
-                    "id": f"entity_{hash(entity_name)}",
-                    "name": entity_name,
+                    "id": f"entity_{hash(normalized_entity)}",
+                    "name": normalized_entity,
                     "type": entity_type,
                     "context": context
                 })
@@ -721,7 +755,238 @@ class KnowledgeGraphBuilder:
                 seen.add(entity_key)
                 unique_entities.append(entity)
         
-        return unique_entities
+        # 实体合并：合并相似或相同的实体
+        merged_entities = self._merge_similar_entities(unique_entities)
+        
+        return self._filter_low_quality_entities(merged_entities)
+        
+    def _merge_similar_entities(self, entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """合并相似或相同的实体"""
+        if not entities:
+            return []
+        
+        # 按实体名称分组
+        entity_groups = {}
+        for entity in entities:
+            name = entity['name'].lower()
+            if name not in entity_groups:
+                entity_groups[name] = []
+            entity_groups[name].append(entity)
+        
+        # 合并每组中的实体
+        merged = []
+        for name, group in entity_groups.items():
+            if len(group) == 1:
+                merged.append(group[0])
+            else:
+                # 选择质量最高的实体作为代表
+                best_entity = max(group, key=lambda e: self._calculate_quality_score(e['name'], e.get('context', '')))
+                merged.append(best_entity)
+        
+        return merged
+        
+    def _preprocess_text(self, text: str) -> str:
+        """预处理文本，清理Markdown格式和行尾换行符"""
+        # 清理行尾换行符
+        text = re.sub(r'\n+', ' ', text)
+        # 清理多余的空格
+        text = re.sub(r'\s+', ' ', text)
+        # 清理Markdown格式的粗体
+        text = re.sub(r'\*\*', '', text)
+        return text
+        
+    def _normalize_entity(self, entity_name: str) -> str:
+        """归一化实体，处理大小写不一致问题"""
+        # 对于多词短语，保持首字母大写，其余小写
+        words = entity_name.split()
+        normalized_words = []
+        for word in words:
+            # 对于缩写词，保持全大写
+            if word.isupper() and len(word) > 1:
+                normalized_words.append(word)
+            else:
+                normalized_words.append(word.capitalize())
+        return ' '.join(normalized_words)
+
+    def _infer_entity_type(self, entity_name: str, context: str) -> str:
+        """Infer entity type based on context."""
+        type_indicators = {
+            'Organization': ['company', 'corp', 'inc', 'founded', 'labs', 'tech', 'enterprise', 'firm', 'business', 'startup', 'organization', 'institute', 'university', 'college', 'school', 'government', 'agency', 'department'],
+            'Technology': ['framework', 'model', 'system', 'platform', 'architecture', 'engine', 'protocol', 'algorithm', 'network', 'technology', 'tool', 'software', 'hardware', 'device', 'equipment'],
+            'Product': ['product', 'launch', 'release', 'version', 'tool', 'package', 'library', 'sdk', 'api', 'assistant', 'application', 'app', 'service', 'solution', 'system'],
+            'Method': ['algorithm', 'technique', 'approach', 'method', 'strategy', 'optimization', 'training', 'inference', 'methodology', 'procedure', 'process', 'technique', 'practice'],
+            'Person': ['researcher', 'scientist', 'engineer', 'developer', 'author', 'founder', 'ceo', 'cto', 'director', 'person', 'individual', 'human', 'expert', 'specialist', 'professional'],
+            'Dataset': ['dataset', 'corpus', 'benchmark', 'evaluation', 'training data', 'test data', 'data set', 'database', 'collection', 'repository'],
+            'Metric': ['accuracy', 'precision', 'recall', 'f1', 'score', 'loss', 'perplexity', 'bleu', 'rouge', 'metric', 'measure', 'indicator', 'statistic', 'score'],
+            'Concept': ['concept', 'idea', 'theory', 'principle', 'notion', 'thought', 'belief', 'hypothesis', 'proposition'],
+            'Process': ['process', 'procedure', 'method', 'technique', 'approach', 'system', 'mechanism', 'operation', 'function'],
+            'Event': ['event', 'conference', 'meeting', 'workshop', 'symposium', 'convention', 'gathering', 'occurrence'],
+            'Theory': ['theory', 'model', 'framework', 'paradigm', 'concept', 'hypothesis', 'principle', 'law'],
+            'Field': ['field', 'domain', 'area', 'discipline', 'subject', 'topic', 'sector', 'industry'],
+            'Task': ['task', 'job', 'assignment', 'project', 'work', 'activity', 'function', 'operation'],
+            'Challenge': ['challenge', 'problem', 'issue', 'difficulty', 'obstacle', 'barrier', 'hurdle', 'complication'],
+            'Opportunity': ['opportunity', 'chance', 'possibility', 'prospect', 'potential', 'opening', 'window'],
+            'Solution': ['solution', 'answer', 'response', 'resolution', 'fix', 'remedy', 'cure', 'treatment'],
+        }
+        
+        # 基于实体名称的模式匹配
+        if re.match(r'^[A-Z]{2,4}$', entity_name):
+            return "Acronym"
+        if re.search(r'[-_]', entity_name):
+            return "TechnicalTerm"
+        if re.match(r'^[0-9]+(\.[0-9]+)?$', entity_name):
+            return "Number"
+        if re.match(r'^https?://', entity_name):
+            return "URL"
+        
+        # 基于上下文的类型推断
+        context_lower = context.lower()
+        for etype, indicators in type_indicators.items():
+            for indicator in indicators:
+                if indicator in context_lower:
+                    return etype
+        
+        # 基于实体名称的语义分析
+        if entity_name.endswith('tion') or entity_name.endswith('sion') or entity_name.endswith('ment'):
+            return "Process"
+        if entity_name.endswith('er') or entity_name.endswith('or') or entity_name.endswith('ist'):
+            return "Person"
+        if entity_name.endswith('ity') or entity_name.endswith('ness') or entity_name.endswith('ship'):
+            return "Concept"
+        
+        # 基于大小写模式的推断
+        if entity_name.istitle() and len(entity_name) > 2:
+            # 检查是否是多词短语
+            if ' ' in entity_name:
+                return "ProperNoun"
+            else:
+                return "Entity"
+        
+        return "Entity"
+
+    def _filter_low_quality_entities(self, entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Filter out low-quality entities."""
+        metadata_words = {'quality', 'score', 'task', 'note', 'tags', 'created', 'published', 'source', 'summary', 'content', 'references', 'metadata', 'primary', 'secondary', 'additional', 'key', 'features'}
+        
+        quality_words = {
+            'research', 'paper', 'study', 'work', 'system', 'method', 'approach', 'technique',
+            'model', 'framework', 'problem', 'solution', 'result', 'finding', 'conclusion',
+            'analysis', 'task', 'issue', 'point', 'view', 'case', 'use', 'used', 'using',
+            'based', 'number', 'part', 'kind', 'type', 'way', 'form', 'set', 'group',
+            'class', 'level', 'stage', 'field', 'area', 'domain', 'section', 'note',
+            'term', 'fact', 'idea', 'concept', 'thought', 'example', 'instance',
+            'question', 'answer', 'data', 'information', 'knowledge', 'understanding',
+            'experience', 'practice', 'application', 'development', 'improvement',
+            'performance', 'quality', 'score', 'value', 'cost', 'benefit', 'advantage',
+            'disadvantage', 'challenge', 'opportunity', 'strategy', 'process', 'step',
+            'feature', 'aspect', 'component', 'element', 'factor', 'condition', 'situation',
+            'state', 'status', 'phase', 'activity', 'action', 'operation', 'function',
+            'purpose', 'goal', 'objective', 'aim', 'target', 'limit', 'range', 'scope',
+            'scale', 'size', 'length', 'width', 'height', 'depth', 'weight', 'speed',
+            'rate', 'frequency', 'percent', 'percentage', 'ratio', 'proportion', 'amount',
+            'quantity', 'number', 'figure', 'outcome', 'output', 'input', 'resource',
+            'source', 'material', 'tool', 'technology', 'algorithm', 'protocol', 'standard',
+            'requirement', 'specification', 'definition', 'description', 'explanation',
+            'interpretation', 'evaluation', 'assessment', 'comparison', 'contrast',
+            'difference', 'similarity', 'relation', 'connection', 'association',
+            'correlation', 'dependence', 'interaction', 'relationship', 'think', 'deep',
+            'world', 'super', 'enhanced', 'providing', 'google', 'microsoft', 'nvidia',
+        }
+        
+        # 无意义的实体组合模式
+        meaningless_patterns = [
+            r'Content\s+The',  # 无意义的组合
+            r'Summary\s+Multi',  # 无意义的组合
+            r'Note\s+ID',  # 元数据字段
+            r'Task\s+ID',  # 元数据字段
+            r'Quality\s+Score',  # 元数据字段
+            r'Created\s+On',  # 元数据字段
+            r'Published\s+On',  # 元数据字段
+            r'Source\s+URL',  # 元数据字段
+            r'Tags\s+List',  # 元数据字段
+        ]
+        
+        filtered = []
+        for entity in entities:
+            name = entity['name']
+            name_lower = name.lower()
+            
+            # 基本过滤
+            if len(name) < 3:
+                continue
+            if name_lower in {'the', 'a', 'an', 'and', 'or', 'but'}:
+                continue
+            if name.isdigit():
+                continue
+            if not re.search(r'[a-zA-Z]', name):
+                continue
+            if re.match(r'^[a-z]+$', name_lower):
+                continue
+            if name_lower in metadata_words:
+                continue
+            if name_lower in quality_words:
+                continue
+            if name.startswith('`') or name.endswith('`'):
+                continue
+            if re.match(r'^\d+$', name):
+                continue
+            
+            # 无意义实体组合过滤
+            is_meaningless = False
+            for pattern in meaningless_patterns:
+                if re.search(pattern, name, re.IGNORECASE):
+                    is_meaningless = True
+                    break
+            if is_meaningless:
+                continue
+            
+            # 质量评分
+            quality_score = self._calculate_quality_score(name, entity.get('context', ''))
+            if quality_score < 0.3:  # 质量阈值
+                continue
+            
+            filtered.append(entity)
+        
+        return filtered
+        
+    def _calculate_quality_score(self, entity_name: str, context: str) -> float:
+        """计算实体质量评分"""
+        score = 0.0
+        
+        # 长度评分
+        length = len(entity_name)
+        if 3 <= length <= 50:
+            score += 0.2
+        elif length > 50:
+            score += 0.1
+        
+        # 词数评分
+        word_count = len(entity_name.split())
+        if 1 <= word_count <= 4:
+            score += 0.2
+        
+        # 大写字母评分（专有名词）
+        if re.match(r'^[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*$', entity_name):
+            score += 0.2
+        
+        # 技术术语评分
+        if re.search(r'[-_]', entity_name):
+            score += 0.2
+        
+        # 上下文相关性评分
+        if context:
+            # 检查实体在上下文中的使用情况
+            if entity_name in context and len(context) > 20:
+                score += 0.2
+        
+        # 语义评分（简单的关键词匹配）
+        meaningful_keywords = {'algorithm', 'model', 'system', 'method', 'technique', 'framework', 'platform', 'architecture', 'protocol', 'network', 'dataset', 'metric', 'company', 'product', 'person', 'organization'}
+        for keyword in meaningful_keywords:
+            if keyword in entity_name.lower():
+                score += 0.1
+                break
+        
+        return min(score, 1.0)
 
     def _extract_relationships(self, text: str, entities: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -768,6 +1033,9 @@ class KnowledgeGraphBuilder:
         # Create entity lookup for faster access
         entity_dict = {entity['name']: entity for entity in entities}
         
+        # 关系去重集合
+        seen_relationships = set()
+        
         # Process each sentence
         for sentence in sentences:
             sentence = sentence.strip()
@@ -811,9 +1079,19 @@ class KnowledgeGraphBuilder:
                                     if source_entity['name'] == target_entity['name']:
                                         continue
                                     
-                                    # Check if relationship already exists
-                                    rel_key = (source_entity['name'], target_entity['name'], rel_type)
-                                    if any(r.get('key') == rel_key for r in relationships):
+                                    # 生成关系键，用于去重
+                                    # 为了避免方向问题，对源和目标进行排序
+                                    sorted_entities = sorted([source_entity['name'], target_entity['name']])
+                                    rel_key = (sorted_entities[0], sorted_entities[1], rel_type)
+                                    
+                                    # 检查关系是否已存在
+                                    if rel_key in seen_relationships:
+                                        continue
+                                    seen_relationships.add(rel_key)
+                                    
+                                    # 计算关系质量评分
+                                    rel_quality = self._calculate_relationship_quality(source_entity, target_entity, sentence, indicator)
+                                    if rel_quality < 0.3:  # 关系质量阈值
                                         continue
                                     
                                     # Extract context around the relationship
@@ -829,6 +1107,7 @@ class KnowledgeGraphBuilder:
                                         "context": context,
                                         "key": rel_key
                                     })
+        
                                     found_relationship = True
             
             # If no specific relationship indicator found, create generic RELATED_TO relationships
@@ -836,38 +1115,107 @@ class KnowledgeGraphBuilder:
             if not found_relationship:
                 for i, entity1 in enumerate(sentence_entities):
                     for j, entity2 in enumerate(sentence_entities):
-                        if i < j and entity1['name'] != entity2['name']:
-                            # Check distance between entities
+                        if i < j:  # Avoid duplicate relationships
+                            # Calculate distance between entities in the sentence
                             idx1 = sentence.find(entity1['name'])
                             idx2 = sentence.find(entity2['name'])
-                            distance = abs(idx1 - idx2)
-                            
-                            # Only create relationship if entities are within 100 characters
-                            if distance < 100:
-                                # Check if relationship already exists
-                                rel_key = (entity1['name'], entity2['name'], 'RELATED_TO')
-                                if any(r.get('key') == rel_key for r in relationships):
-                                    continue
-                                
-                                # Extract context
-                                start_idx = max(0, min(idx1, idx2) - 30)
-                                end_idx = min(len(sentence), max(idx1 + len(entity1['name']), idx2 + len(entity2['name'])) + 30)
-                                context = sentence[start_idx:end_idx]
-                                
-                                relationships.append({
-                                    "source": entity1['id'],
-                                    "target": entity2['id'],
-                                    "type": "RELATED_TO",
-                                    "context": context,
-                                    "key": rel_key
-                                })
-        
-        # Remove the temporary key field
-        for rel in relationships:
-            if 'key' in rel:
-                del rel['key']
+                            if idx1 != -1 and idx2 != -1:
+                                distance = abs(idx1 - idx2)
+                                # Only create relationship if entities are close (within 50 characters)
+                                if distance < 50:
+                                    # 生成关系键，用于去重
+                                    sorted_entities = sorted([entity1['name'], entity2['name']])
+                                    rel_key = (sorted_entities[0], sorted_entities[1], 'related_to')
+                                    
+                                    # 检查关系是否已存在
+                                    if rel_key not in seen_relationships:
+                                        seen_relationships.add(rel_key)
+                                        
+                                        # 计算关系质量评分
+                                        rel_quality = self._calculate_relationship_quality(entity1, entity2, sentence, 'related to')
+                                        if rel_quality < 0.2:  # 关系质量阈值
+                                            continue
+                                        
+                                        # Extract context around the relationship
+                                        start_idx = max(0, min(idx1, idx2) - 30)
+                                        end_idx = min(len(sentence), max(idx1 + len(entity1['name']), idx2 + len(entity2['name'])) + 30)
+                                        context = sentence[start_idx:end_idx]
+                                        
+                                        relationships.append({
+                                            "source": entity1['id'],
+                                            "target": entity2['id'],
+                                            "type": "RELATED_TO",
+                                            "context": context,
+                                            "key": rel_key
+                                        })
         
         return relationships
+        
+    def _calculate_relationship_quality(self, source_entity: Dict[str, Any], target_entity: Dict[str, Any], sentence: str, indicator: str) -> float:
+        """计算关系质量评分"""
+        score = 0.0
+        
+        # 实体质量评分
+        source_quality = self._calculate_quality_score(source_entity['name'], source_entity.get('context', ''))
+        target_quality = self._calculate_quality_score(target_entity['name'], target_entity.get('context', ''))
+        score += (source_quality + target_quality) / 2 * 0.3
+        
+        # 关系指示器强度
+        indicator_strength = {
+            'causes': 0.9, 'enables': 0.8, 'requires': 0.8, 'contains': 0.7,
+            'improves': 0.7, 'reduces': 0.7, 'prevents': 0.7, 'similar_to': 0.6,
+            'different_from': 0.6, 'part_of': 0.8, 'uses': 0.8, 'applied_to': 0.7,
+            'based_on': 0.8, 'affects': 0.7, 'related_to': 0.5, 'example_of': 0.6,
+            'defined_as': 0.9, 'located_in': 0.7, 'occurs_in': 0.6, 'belongs_to': 0.8,
+            'follows': 0.6, 'precedes': 0.6
+        }
+        
+        # 提取关系类型
+        rel_type = None
+        relationship_indicators = {
+            'causes': ['causes', 'caused', 'leads to', 'led to', 'results in', 'resulted in', 'produces', 'produced', 'creates', 'created', 'generates', 'generated'],
+            'enables': ['enables', 'enabled', 'allows', 'allowed', 'permits', 'permitted', 'facilitates', 'facilitated', 'supports', 'supported'],
+            'requires': ['requires', 'required', 'needs', 'needed', 'depends on', 'depended on', 'relies on', 'relied on'],
+            'contains': ['contains', 'contained', 'includes', 'included', 'consists of', 'consisted of', 'comprises', 'comprised', 'involves', 'involved'],
+            'improves': ['improves', 'improved', 'enhances', 'enhanced', 'increases', 'increased', 'boosts', 'boosted', 'optimizes', 'optimized'],
+            'reduces': ['reduces', 'reduced', 'decreases', 'decreased', 'minimizes', 'minimized', 'lowers', 'lowered', 'cuts', 'cut'],
+            'prevents': ['prevents', 'prevented', 'avoids', 'avoided', 'stops', 'stopped', 'blocks', 'blocked', 'inhibits', 'inhibited'],
+            'similar_to': ['similar to', 'similar as', 'like', 'resembles', 'resembled', 'analogous to', 'comparable to'],
+            'different_from': ['different from', 'differs from', 'unlike', 'distinct from', 'separate from'],
+            'part_of': ['part of', 'portion of', 'component of', 'element of', 'aspect of', 'feature of'],
+            'uses': ['uses', 'used', 'utilizes', 'utilized', 'employs', 'employed', 'applies', 'applied', 'implements', 'implemented'],
+            'applied_to': ['applied to', 'used in', 'utilized in', 'employed in', 'implemented in'],
+            'based_on': ['based on', 'built on', 'founded on', 'grounded in', 'rooted in', 'derived from'],
+            'affects': ['affects', 'affected', 'impacts', 'impacted', 'influences', 'influenced', 'shapes', 'shaped'],
+            'related_to': ['related to', 'associated with', 'connected to', 'linked to', 'tied to'],
+            'example_of': ['example of', 'instance of', 'case of', 'illustration of'],
+            'defined_as': ['defined as', 'means', 'refers to', 'stands for', 'represents'],
+            'located_in': ['located in', 'found in', 'situated in', 'positioned in', 'placed in'],
+            'occurs_in': ['occurs in', 'happens in', 'takes place in', 'appears in'],
+            'belongs_to': ['belongs to', 'owned by', 'possessed by', 'held by'],
+            'follows': ['follows', 'followed', 'comes after', 'came after', 'succeeds', 'succeeded'],
+            'precedes': ['precedes', 'preceded', 'comes before', 'came before', 'precedes', 'preceeded'],
+        }
+        
+        for r_type, indicators in relationship_indicators.items():
+            if indicator in indicators:
+                rel_type = r_type
+                break
+        
+        if rel_type and rel_type in indicator_strength:
+            score += indicator_strength[rel_type] * 0.4
+        else:
+            score += 0.5 * 0.4
+        
+        # 实体在句子中的距离
+        source_idx = sentence.find(source_entity['name'])
+        target_idx = sentence.find(target_entity['name'])
+        distance = abs(source_idx - target_idx)
+        max_distance = len(sentence)
+        distance_score = max(0, 1 - (distance / max_distance))
+        score += distance_score * 0.3
+        
+        return min(score, 1.0)
 
     def _add_entity(self, entity: Dict[str, Any], document_id: str) -> None:
         """
