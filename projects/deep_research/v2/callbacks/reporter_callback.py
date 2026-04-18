@@ -643,6 +643,13 @@ class ReporterCallback(Callback):
         try:
             with open(self.report_path, 'r', encoding='utf-8') as f:
                 content = f.read()
+        except UnicodeDecodeError:
+            try:
+                with open(self.report_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+            except Exception as exc:
+                logger.warning(f'ReporterCallback: failed to read report: {exc}')
+                return
         except Exception as exc:
             logger.warning(f'ReporterCallback: failed to read report: {exc}')
             return

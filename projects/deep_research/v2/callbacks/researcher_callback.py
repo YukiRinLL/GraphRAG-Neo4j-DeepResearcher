@@ -178,6 +178,13 @@ class ResearcherCallback(Callback):
         try:
             with open(self._report_path, 'r', encoding='utf-8') as f:
                 report_content = f.read()
+        except UnicodeDecodeError:
+            try:
+                with open(self._report_path, 'r', encoding='latin-1') as f:
+                    report_content = f.read()
+            except Exception as exc:
+                logger.warning(f'ResearcherCallback: failed to read report: {exc}')
+                return
         except Exception as exc:
             logger.warning(f'ResearcherCallback: failed to read report: {exc}')
             return
