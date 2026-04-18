@@ -333,12 +333,21 @@ class OpenAI(LLM):
             if chunk.choices and chunk.choices[0].finish_reason:
                 try:
                     next_chunk = next(completion)
-                    message.prompt_tokens += next_chunk.usage.prompt_tokens
-                    cached, created = self._extract_cache_info(
-                        getattr(next_chunk, 'usage', None))
-                    message.cached_tokens += cached
-                    message.cache_creation_input_tokens += created
-                    message.completion_tokens += next_chunk.usage.completion_tokens
+                    if message:
+                        if message.prompt_tokens is None:
+                            message.prompt_tokens = 0
+                        if message.cached_tokens is None:
+                            message.cached_tokens = 0
+                        if message.cache_creation_input_tokens is None:
+                            message.cache_creation_input_tokens = 0
+                        if message.completion_tokens is None:
+                            message.completion_tokens = 0
+                        message.prompt_tokens += next_chunk.usage.prompt_tokens
+                        cached, created = self._extract_cache_info(
+                            getattr(next_chunk, 'usage', None))
+                        message.cached_tokens += cached
+                        message.cache_creation_input_tokens += created
+                        message.completion_tokens += next_chunk.usage.completion_tokens
                 except (StopIteration, AttributeError):
                     # The stream may end without a final usage chunk, which is acceptable.
                     pass
