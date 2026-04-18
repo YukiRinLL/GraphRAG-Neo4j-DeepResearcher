@@ -692,7 +692,9 @@ class KnowledgeGraphBuilder:
             
             # Pattern 4: Multi-word phrases (proper nouns with 2-4 words)
             # 改进的短语提取模式，确保能够提取完整的实体
-            phrase_pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'
+            # 避免提取无意义的组合，如"Combining Efficiency"
+            phrase_pattern = r'\b(?!Combining|With|For|Of|In|On|At|By|From|To|Through|During|Since|Until|While|Although|Though|Unless|Whether|Either|Neither|Both|And|Or|But|So|Yet|Nor)'
+            phrase_pattern += r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3}\b'
             phrase_matches = re.findall(phrase_pattern, sentence)
             
             # Pattern 5: 带连字符的多词短语
@@ -765,22 +767,25 @@ class KnowledgeGraphBuilder:
         if not entities:
             return []
         
-        # 按实体名称分组
+        # 按归一化后的实体名称分组
         entity_groups = {}
         for entity in entities:
-            name = entity['name'].lower()
-            if name not in entity_groups:
-                entity_groups[name] = []
-            entity_groups[name].append(entity)
+            # 归一化实体名称用于分组
+            normalized_name = self._normalize_entity(entity['name']).lower()
+            if normalized_name not in entity_groups:
+                entity_groups[normalized_name] = []
+            entity_groups[normalized_name].append(entity)
         
         # 合并每组中的实体
         merged = []
-        for name, group in entity_groups.items():
+        for normalized_name, group in entity_groups.items():
             if len(group) == 1:
                 merged.append(group[0])
             else:
                 # 选择质量最高的实体作为代表
                 best_entity = max(group, key=lambda e: self._calculate_quality_score(e['name'], e.get('context', '')))
+                # 使用归一化的名称
+                best_entity['name'] = self._normalize_entity(best_entity['name'])
                 merged.append(best_entity)
         
         return merged
@@ -796,9 +801,11 @@ class KnowledgeGraphBuilder:
         return text
         
     def _normalize_entity(self, entity_name: str) -> str:
-        """归一化实体，处理大小写不一致问题"""
+        """归一化实体，处理大小写不一致和格式差异问题"""
+        # 处理下划线和连字符，统一转换为空格
+        normalized = entity_name.replace('_', ' ').replace('-', ' ')
         # 对于多词短语，保持首字母大写，其余小写
-        words = entity_name.split()
+        words = normalized.split()
         normalized_words = []
         for word in words:
             # 对于缩写词，保持全大写
@@ -904,6 +911,16 @@ class KnowledgeGraphBuilder:
             r'Published\s+On',  # 元数据字段
             r'Source\s+URL',  # 元数据字段
             r'Tags\s+List',  # 元数据字段
+            r'Combining\s+Efficiency',  # 无意义的组合
+            r'With\s+Training',  # 无意义的组合
+            r'For\s+Long',  # 无意义的组合
+            r'Of\s+The',  # 无意义的组合
+            r'In\s+The',  # 无意义的组合
+            r'On\s+The',  # 无意义的组合
+            r'At\s+The',  # 无意义的组合
+            r'By\s+The',  # 无意义的组合
+            r'From\s+The',  # 无意义的组合
+            r'To\s+The',  # 无意义的组合
         ]
         
         filtered = []
