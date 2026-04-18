@@ -155,6 +155,12 @@ def _try_backfill_from_existing_workdir(
     try:
         with open(report_path, 'r', encoding='utf-8') as f:
             article = f.read()
+    except UnicodeDecodeError:
+        try:
+            with open(report_path, 'r', encoding='latin-1') as f:
+                article = f.read()
+        except Exception as e:
+            return False, f'failed to read report for backfill: {e} (path={report_path})'
     except Exception as e:
         return False, f'failed to read report for backfill: {e} (path={report_path})'
 
@@ -534,6 +540,12 @@ def _run_one_task(
     try:
         with open(report_path, 'r', encoding='utf-8') as f:
             article = f.read()
+    except UnicodeDecodeError:
+        try:
+            with open(report_path, 'r', encoding='latin-1') as f:
+                article = f.read()
+        except Exception as e:
+            return task.task_id, None, f'failed to read report: {e} (path={report_path})'
     except Exception as e:
         return task.task_id, None, f'failed to read report: {e} (path={report_path})'
 
