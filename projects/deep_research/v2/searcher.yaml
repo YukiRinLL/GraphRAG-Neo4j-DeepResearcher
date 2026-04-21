@@ -1,92 +1,100 @@
+# Searcher 代理配置文件
+# 负责执行搜索任务，收集证据并存储到证据库中
+
+# LLM 配置
 llm:
-  service: openai
-#  model: qwen3.5-flash
-#  model: Qwen/Qwen3-8B
-  model: qwen3.5-plus
-  openai_api_key: <OPENAI_API_KEY>
-  openai_base_url: <OPENAI_BASE_URL>
+  service: openai  # 使用的 LLM 服务提供商
+  model: qwen3.5-plus  # 使用的模型名称
+  openai_api_key: <OPENAI_API_KEY>  # OpenAI API 密钥
+  openai_base_url: <OPENAI_BASE_URL>  # OpenAI API 基础 URL
 
-
+# 生成配置
 generation_config:
-  stream: true
+  stream: true  # 是否启用流式输出
   stream_options:
-    include_usage: true
-  # Enable explicit prefix caching (auto-detects provider from openai_base_url)
-  force_prefix_cache: true
-  # Supports role names: system, user, assistant, tool, last_message
-  prefix_cache_roles: [system, user, assistant, tool]
+    include_usage: true  # 是否包含使用情况统计
+  # 启用显式前缀缓存（自动从 openai_base_url 检测提供商）
+  force_prefix_cache: true  # 是否强制使用前缀缓存
+  # 支持的角色名称：system, user, assistant, tool, last_message
+  prefix_cache_roles: [system, user, assistant, tool]  # 哪些角色的消息会被缓存
   extra_body:
-    enable_thinking: false
+    enable_thinking: false  # 是否启用思考模式
 
+# 代理标签
+tag: deep-research  # 代理的唯一标识符
 
-tag: deep-research
-
-
+# 提示词配置
 prompt:
-  root: prompts/
-  agent: searcher
-  lang: en
-  family: gpt5
+  root: prompts/  # 提示词文件的根目录
+  agent: searcher  # 代理类型
+  lang: en  # 语言（英语）
+  family: gpt5  # 提示词家族
 
-
+# 工具配置
 tools:
+  # 文件系统工具
   file_system:
-    mcp: false
-    include:
-      - write_file
-      - read_file
-      - list_files
+    mcp: false  # 是否使用 MCP 协议
+    include:  # 包含的工具功能
+      - write_file  # 写入文件
+      - read_file  # 读取文件
+      - list_files  # 列出文件
+  # 网络搜索工具
   web_search:
-    mcp: false
-    engines:
-      - exa
-      - arxiv
-    api_key: <EXA_API_KEY>
-    max_results: 5
-    fetcher: jina_reader
-    fetch_content: true
-    fetch_timeout: 60
-    _max_concurrent_fetch: 5
-    enable_chunking: false
-    enable_summarization: true
-#    summarizer_model: qwen3.5-flash
-#    summarizer_model: Qwen/Qwen3-8B
-    summarizer_model: qwen3.5-plus
-    summarizer_base_url: <OPENAI_BASE_URL>
-    summarizer_api_key: <OPENAI_API_KEY>
-    max_content_chars: 200000
-    summarizer_max_workers: 15
-    summarization_timeout: 360
-    _max_concurrent_summarization: 15
+    mcp: false  # 是否使用 MCP 协议
+    engines:  # 搜索引擎
+      - exa  # Exa 搜索引擎
+      - arxiv  # arXiv 学术论文搜索
+    api_key: <EXA_API_KEY>  # Exa API 密钥
+    max_results: 5  # 最大搜索结果数
+    fetcher: jina_reader  # 内容获取器
+    fetch_content: true  # 是否获取内容
+    fetch_timeout: 60  # 获取超时时间（秒）
+    _max_concurrent_fetch: 5  # 最大并发获取数
+    enable_chunking: false  # 是否启用分块
+    enable_summarization: true  # 是否启用摘要
+    summarizer_model: qwen3.5-plus  # 摘要模型
+    summarizer_base_url: <OPENAI_BASE_URL>  # 摘要模型基础 URL
+    summarizer_api_key: <OPENAI_API_KEY>  # 摘要模型 API 密钥
+    max_content_chars: 200000  # 最大内容字符数
+    summarizer_max_workers: 15  # 摘要最大工作线程数
+    summarization_timeout: 360  # 摘要超时时间（秒）
+    _max_concurrent_summarization: 15  # 最大并发摘要数
+  # 证据存储工具
   evidence_store:
-    mcp: false
-    evidence_dir: evidence
-    chunks_dir: chunks
-    enable_chunk_storage: false
-    include:
-      - write_note
-      - list_notes
-      - get_note
-      - load_index
-      - search_notes
-      - delete_note
+    mcp: false  # 是否使用 MCP 协议
+    evidence_dir: evidence  # 证据存储目录
+    chunks_dir: chunks  # 分块存储目录
+    enable_chunk_storage: false  # 是否启用分块存储
+    include:  # 包含的工具功能
+      - write_note  # 写入笔记
+      - list_notes  # 列出笔记
+      - get_note  # 获取笔记
+      - load_index  # 加载索引
+      - search_notes  # 搜索笔记
+      - delete_note  # 删除笔记
+  # 插件
   plugins:
-    - tools/evidence_tool.py
-    - ms_agent.tools.knowledge_graph.knowledge_graph_tool
+    - tools/evidence_tool.py  # 证据工具插件
+    - ms_agent.tools.knowledge_graph.knowledge_graph_tool  # 知识图谱工具插件
 
+# 处理器
+handler: time_handler  # 时间处理器
 
-handler: time_handler
-
+# 回调配置
 callbacks:
-  - callbacks/searcher_callback
+  - callbacks/searcher_callback  # 搜索回调
 
-max_chat_round: 30
+# 最大聊天轮数
+max_chat_round: 30  # 最大聊天轮数
 
-# Round-aware reminder injected via SearcherCallback.on_generate_response.
+# 通过 SearcherCallback.on_generate_response 注入的轮次提醒。
 round_reminder:
-  enabled: true
-  remind_at_round: 28
+  enabled: true  # 是否启用轮次提醒
+  remind_at_round: 28  # 在第 28 轮提醒
 
-tool_call_timeout: 300
+# 工具调用超时时间
+tool_call_timeout: 300  # 工具调用超时时间（秒）
 
-output_dir: ./output
+# 输出目录
+output_dir: ./output  # 输出目录路径

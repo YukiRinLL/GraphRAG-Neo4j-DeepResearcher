@@ -1,92 +1,100 @@
+# Researcher 代理配置文件
+# 负责协调整个研究过程，包括调用 Searcher 和 Reporter 子代理
+
+# LLM 配置
 llm:
-  service: openai
-#  model: qwen3.5-flash
-#  model: Qwen/Qwen3-8B
-  model: qwen3.5-plus
-  openai_api_key: <OPENAI_API_KEY>
-  openai_base_url: <OPENAI_BASE_URL>
+  service: openai  # 使用的 LLM 服务提供商
+  model: qwen3.5-plus  # 使用的模型名称
+  openai_api_key: <OPENAI_API_KEY>  # OpenAI API 密钥
+  openai_base_url: <OPENAI_BASE_URL>  # OpenAI API 基础 URL
 
-
+# 生成配置
 generation_config:
-  stream: true
+  stream: true  # 是否启用流式输出
   stream_options:
-    include_usage: true
-  # Enable explicit prefix caching (auto-detects provider from openai_base_url)
-  force_prefix_cache: false
-  # Supports role names: system, user, assistant, tool, last_message
-  prefix_cache_roles: [system, user, assistant, tool]
+    include_usage: true  # 是否包含使用情况统计
+  # 启用显式前缀缓存（自动从 openai_base_url 检测提供商）
+  force_prefix_cache: false  # 是否强制使用前缀缓存
+  # 支持的角色名称：system, user, assistant, tool, last_message
+  prefix_cache_roles: [system, user, assistant, tool]  # 哪些角色的消息会被缓存
   # extra_body:
     # enable_thinking: false
 
+# 代理标签
+tag: deep-research-researcher  # 代理的唯一标识符
 
-tag: deep-research-researcher
-
-
+# 提示词配置
 prompt:
-  root: prompts/
-  agent: researcher
-  lang: en
-  family: gpt5
+  root: prompts/  # 提示词文件的根目录
+  agent: researcher  # 代理类型
+  lang: en  # 语言（英语）
+  family: gpt5  # 提示词家族
 
-
+# 工具配置
 tools:
+  # 文件系统工具
   file_system:
-    mcp: false
-    include:
-      - write_file
-      - read_file
-      - list_files
-      - search_file_content
-      - replace_file_contents
-      - replace_file_lines
+    mcp: false  # 是否使用 MCP 协议
+    include:  # 包含的工具功能
+      - write_file  # 写入文件
+      - read_file  # 读取文件
+      - list_files  # 列出文件
+      - search_file_content  # 搜索文件内容
+      - replace_file_contents  # 替换文件内容
+      - replace_file_lines  # 替换文件行
+  # 代码执行工具
   code_executor:
-    mcp: false
-    implementation: python_env
-    notebook_timeout: 120
+    mcp: false  # 是否使用 MCP 协议
+    implementation: python_env  # 实现方式（Python 环境）
+    notebook_timeout: 120  # 笔记本执行超时时间（秒）
     include:
-      - notebook_executor
+      - notebook_executor  # 笔记本执行器
+  # 任务列表工具
   todo_list:
-    mcp: false
-    auto_render_md: true
+    mcp: false  # 是否使用 MCP 协议
+    auto_render_md: true  # 是否自动渲染 Markdown
     include:
-      - todo_write
-      - todo_read
+      - todo_write  # 写入任务
+      - todo_read  # 读取任务
+  # 证据存储工具
   evidence_store:
-    mcp: false
-    evidence_dir: evidence
-    include:
-      - load_index
-      - get_note
-      - list_notes
-      - write_analysis
-      - get_analysis
-      - list_analyses
+    mcp: false  # 是否使用 MCP 协议
+    evidence_dir: evidence  # 证据存储目录
+    include:  # 包含的工具功能
+      - load_index  # 加载索引
+      - get_note  # 获取笔记
+      - list_notes  # 列出笔记
+      - write_analysis  # 写入分析
+      - get_analysis  # 获取分析
+      - list_analyses  # 列出分析
+  # 代理工具
   agent_tools:
-    mcp: false
-    enable_stats: true
-    run_in_thread: true
-    max_workers: 4
+    mcp: false  # 是否使用 MCP 协议
+    enable_stats: true  # 是否启用统计
+    run_in_thread: true  # 是否在线程中运行
+    max_workers: 4  # 最大工作线程数
     definitions:
+      # Searcher 子代理工具
       - tool_name: searcher_tool
         description: >
-          Invoke the Searcher sub-agent to perform an in-depth research task on a specific topic.
-          Searcher is capable of autonomously executing a research loop until sufficient evidence is collected and a research report is produced (search -> parse -> evidence discovery & storage -> progressive search -> ...).
-          Returns a JSON result containing: task completion status, core findings, issues or limitations encountered, research report body, and evidence storage locations.
-        config_path: searcher.yaml
+          调用 Searcher 子代理执行特定主题的深入研究任务。
+          Searcher 能够自主执行研究循环，直到收集到足够的证据并生成研究报告（搜索 -> 解析 -> 证据发现和存储 -> 渐进式搜索 -> ...）。
+          返回包含以下内容的 JSON 结果：任务完成状态、核心发现、遇到的问题或限制、研究报告正文以及证据存储位置。
+        config_path: searcher.yaml  # 配置文件路径
         parameters:
           type: object
           properties:
             request:
               type: string
               description: >
-                A JSON-formatted research task description that should include:
-                - The corresponding task ID from the TODO list (required)
-                - Specific research objectives
-                - Questions to be answered
-                - Constraints (time range, source preferences, etc., optional)
-                - Stopping conditions (optional)
-                - Other requirements (optional)
-                Recommended format:
+                JSON 格式的研究任务描述，应包括：
+                - TODO 列表中对应的任务 ID（必填）
+                - 具体研究目标
+                - 需要回答的问题
+                - 约束条件（时间范围、来源偏好等，可选）
+                - 停止条件（可选）
+                - 其他要求（可选）
+                推荐格式：
                 {
                   "task_id": "...",
                   "research_objectives": "...",
@@ -95,33 +103,34 @@ tools:
                   "stopping_conditions": "...",
                   "other_requirements": "...",
                 }
-          required: [request]
-          additionalProperties: false
-        trust_remote_code: true
-        output_mode: final_message
-        max_output_chars: 200000
+          required: [request]  # 必填参数
+          additionalProperties: false  # 是否允许其他属性
+        trust_remote_code: true  # 是否信任远程代码
+        output_mode: final_message  # 输出模式（最终消息）
+        max_output_chars: 200000  # 最大输出字符数
+      # Reporter 子代理工具
       - tool_name: reporter_tool
         description: >
-          Invoke the Reporter sub-agent to generate a research report based on collected evidence.
-          Reporter reads the stored evidence cards and executes a complex workflow for research report writing.
-          The completed report is automatically saved to `final_report.md` in the output directory.
-          Returns a JSON result containing: execution summary and
-          intermediate artifact file paths (the full report body is NOT included in the return value —
-          read `final_report.md` directly to access the report content).
-        config_path: reporter.yaml
+          调用 Reporter 子代理基于收集的证据生成研究报告。
+          Reporter 读取存储的证据卡片并执行复杂的研究报告撰写工作流。
+          完成的报告会自动保存到输出目录中的 `final_report.md`。
+          返回包含以下内容的 JSON 结果：执行摘要和
+          中间工件文件路径（完整的报告正文不包含在返回值中 —
+          直接读取 `final_report.md` 访问报告内容）。
+        config_path: reporter.yaml  # 配置文件路径
         parameters:
           type: object
           properties:
             request:
               type: string
               description: >
-                A JSON-formatted report generation instruction that should include:
-                - Report topic and target audience
-                - Complete background description and task description
-                - Core questions to be covered
-                - Writing requirements (style, structure, length, language, etc.)
-                - Any other requirements
-                Recommended format:
+                JSON 格式的报告生成指令，应包括：
+                - 报告主题和目标受众
+                - 完整的背景描述和任务描述
+                - 需要覆盖的核心问题
+                - 写作要求（风格、结构、长度、语言等）
+                - 任何其他要求
+                推荐格式：
                 {
                   "report_topic_and_audience": "...",
                   "background": "...",
@@ -129,36 +138,40 @@ tools:
                   "writing_requirements": "...",
                   "other_requirements": "...",
                 }
-          required: [request]
-          additionalProperties: false
-        trust_remote_code: true
-        output_mode: final_message
-        max_output_chars: 200000
+          required: [request]  # 必填参数
+          additionalProperties: false  # 是否允许其他属性
+        trust_remote_code: true  # 是否信任远程代码
+        output_mode: final_message  # 输出模式（最终消息）
+        max_output_chars: 200000  # 最大输出字符数
+  # 插件
   plugins:
-    - tools/evidence_tool.py
-    - ms_agent.tools.knowledge_graph.knowledge_graph_tool
+    - tools/evidence_tool.py  # 证据工具插件
+    - ms_agent.tools.knowledge_graph.knowledge_graph_tool  # 知识图谱工具插件
 
-
+# 回调配置
 callbacks:
-  - callbacks/researcher_callback
+  - callbacks/researcher_callback  # 研究回调
 
-# Self-reflection checks before allowing the researcher to stop.
-# Runs inside ResearcherCallback.after_tool_call.
+# 研究代理停止前的自我反思检查。
+# 在 ResearcherCallback.after_tool_call 中运行。
 self_reflection:
-  enabled: true
-  max_retries: 2
-  quality_check:
-    enabled: true
-#    model: qwen3.5-flash
-#    model: Qwen/Qwen3-8B
-    model: qwen3.5-plus
+  enabled: true  # 是否启用自我反思
+  max_retries: 2  # 最大重试次数
+  quality_check:  # 质量检查
+    enabled: true  # 是否启用质量检查
+    model: qwen3.5-plus  # 使用的模型名称
 
-handler: time_handler
+# 处理器
+handler: time_handler  # 时间处理器
 
-code_file: researcher
+# 代码文件
+code_file: researcher  # 代码文件名称
 
-max_chat_round: 42
+# 最大聊天轮数
+max_chat_round: 42  # 最大聊天轮数
 
-tool_call_timeout: 2400
+# 工具调用超时时间
+tool_call_timeout: 2400  # 工具调用超时时间（秒）
 
-output_dir: ./output
+# 输出目录
+output_dir: ./output  # 输出目录路径
