@@ -18,7 +18,7 @@ generation_config:
   # 支持的角色名称：system, user, assistant, tool, last_message
   prefix_cache_roles: [system, user, assistant, tool]  # 哪些角色的消息会被缓存
   extra_body:
-    enable_thinking: false  # 是否启用思考模式
+    enable_thinking: true  # 是否启用思考模式
 
 # 代理标签
 tag: deep-research  # 代理的唯一标识符
@@ -51,7 +51,7 @@ tools:
     fetch_content: true  # 是否获取内容
     fetch_timeout: 60  # 获取超时时间（秒）
     _max_concurrent_fetch: 5  # 最大并发获取数
-    enable_chunking: false  # 是否启用分块
+    enable_chunking: true  # 是否启用分块
     enable_summarization: true  # 是否启用摘要
     summarizer_model: qwen3.5-plus  # 摘要模型
     summarizer_base_url: <OPENAI_BASE_URL>  # 摘要模型基础 URL
@@ -65,7 +65,7 @@ tools:
     mcp: false  # 是否使用 MCP 协议
     evidence_dir: evidence  # 证据存储目录
     chunks_dir: chunks  # 分块存储目录
-    enable_chunk_storage: false  # 是否启用分块存储
+    enable_chunk_storage: true  # 是否启用分块存储
     include:  # 包含的工具功能
       - write_note  # 写入笔记
       - list_notes  # 列出笔记

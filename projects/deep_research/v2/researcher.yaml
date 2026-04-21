@@ -104,7 +104,7 @@ tools:
                   "other_requirements": "...",
                 }
           required: [request]  # 必填参数
-          additionalProperties: false  # 是否允许其他属性
+          additionalProperties: true  # 是否允许其他属性
         trust_remote_code: true  # 是否信任远程代码
         output_mode: final_message  # 输出模式（最终消息）
         max_output_chars: 200000  # 最大输出字符数
@@ -139,7 +139,7 @@ tools:
                   "other_requirements": "...",
                 }
           required: [request]  # 必填参数
-          additionalProperties: false  # 是否允许其他属性
+          additionalProperties: true  # 是否允许其他属性
         trust_remote_code: true  # 是否信任远程代码
         output_mode: final_message  # 输出模式（最终消息）
         max_output_chars: 200000  # 最大输出字符数

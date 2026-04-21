@@ -18,7 +18,7 @@ generation_config:
   # 支持的角色名称：system, user, assistant, tool, last_message
   prefix_cache_roles: [system, user, assistant, tool]  # 哪些角色的消息会被缓存
   extra_body:
-    enable_thinking: false  # 是否启用思考模式
+    enable_thinking: true  # 是否启用思考模式
   # show_reasoning: true
   # reasoning_output: stdout
 
@@ -84,7 +84,7 @@ self_reflection:
   enabled: true  # 是否启用自我反思
   max_retries: 3  # 最大重试次数
   min_retention_ratio: 0.6  # 最小保留比率
-  post_report_guidance_enabled: false  # 是否启用报告后指导
+  post_report_guidance_enabled: true  # 是否启用报告后指导
   quality_check:  # 质量检查
     enabled: true  # 是否启用质量检查
     model: qwen3.5-plus  # 使用的模型名称
