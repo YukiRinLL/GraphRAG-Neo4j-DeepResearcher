@@ -8,9 +8,12 @@ json5
 markdown
 mcp
 modelscope
+neo4j
 openai
 pandas
 Pillow
 python-dotenv
 requests
 rich
+sentence-transformers
+langchain

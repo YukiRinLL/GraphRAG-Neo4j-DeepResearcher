@@ -204,8 +204,13 @@ class RunCMD(CLICommand):
                 author = f.read()
         blue_color_prefix = '\033[34m'
         blue_color_suffix = '\033[0m'
-        print(
-            blue_color_prefix + MS_AGENT_ASCII + blue_color_suffix, flush=True)
+        # Handle Unicode characters in ASCII art
+        try:
+            print(
+                blue_color_prefix + MS_AGENT_ASCII + blue_color_suffix, flush=True)
+        except UnicodeEncodeError:
+            # Print without colors if Unicode error occurs
+            print(MS_AGENT_ASCII, flush=True)
         line_start = '═════════════════════════Workflow Contributed By════════════════════════════'
         line_end = '════════════════════════════════════════════════════════════════════════════'
         if author:
